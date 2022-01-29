@@ -4,7 +4,6 @@
 [![Twitter](https://img.shields.io/badge/twitter-@simonwhitty-blue.svg)](http://twitter.com/simonwhitty)
 
 - [Introduction](#introduction)
-- [Installation](#installation)
 - [Usage](#usage)
 - [Credits](#credits)
 
@@ -20,12 +19,16 @@ Any class can declare a property to be `@Awaiting` as follows:
 @Awaiting var isComplete: Bool = false
 ```
 
-You can then use its [projected value](https://docs.swift.org/swift-book/LanguageGuide/Properties.html#ID619) to asynchronously wait until some predicate is met;
+You then use its [projected value](https://docs.swift.org/swift-book/LanguageGuide/Properties.html#ID619) to await until some predicate is met;
 
 ```swift
 // Suspends until isComplete == true
-_ = await $isComplete.first(where: { $0 })
+_ = try await $isComplete.first(where: { $0 })
 ```
+
+### Cancellation
+
+[`CancellationError`](https://developer.apple.com/documentation/swift/cancellationerror) is thrown if the task is cancelled before the predicate can be met.
 
 ### Optionals
 
@@ -34,7 +37,8 @@ When optionals are wrapped you can wait for the first non nil value:
 ```swift
 @Awaiting var name: String?
 
-let name = await $names.first()
+// Suspends until name != nil
+let name = try await $name.first()
 ```
 
 ### Collections
@@ -44,7 +48,8 @@ When collections are wrapped you can wait for at least _n_ elements to exist:
 ```swift
 @Awaiting var names = [String]()
 
-let nonEmpty = await $names.first(withAtLeast: 1)
+// Suspends until names.count >= 1
+let nonEmpty = try await $names.first(withAtLeast: 1)
 ```
 
 # Credits
