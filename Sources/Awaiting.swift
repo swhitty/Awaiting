@@ -67,7 +67,7 @@ public final class Awaiting<Element> {
     /// - Returns: The `wrappedValue` when it passes the predicate.
     ///
     /// - Throws: `CancellationError` if the task is cancelled.
-    func first(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
+    public func first(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
       try await getter(predicate)
     }
 
@@ -78,7 +78,7 @@ public final class Awaiting<Element> {
     ///
     /// - Throws: `CancellationError` if the task is cancelled.
     ///
-    func first(withAtLeast minCount: Int) async throws -> Element where Element: Collection {
+    public func first(withAtLeast minCount: Int) async throws -> Element where Element: Collection {
       try await first { $0.count >= minCount }
     }
 
@@ -87,7 +87,7 @@ public final class Awaiting<Element> {
     /// - Returns: An unwrapped element when != nil
     ///
     /// - Throws: `CancellationError` if the task is cancelled.
-    func first<T>() async throws -> T where Element == Optional<T> {
+    public func first<T>() async throws -> T where Element == Optional<T> {
       try await first { $0 != nil }!
     }
   }
