@@ -4,10 +4,6 @@
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
 [![Twitter](https://img.shields.io/badge/twitter-@simonwhitty-blue.svg)](http://twitter.com/simonwhitty)
 
-- [Introduction](#introduction)
-- [Usage](#usage)
-- [Credits](#credits)
-
 # Introduction
 
 **@Awaiting** is a Swift `@propertyWrapper` that waits asynchronously until the value matches a predicate.
