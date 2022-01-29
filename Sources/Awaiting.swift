@@ -123,12 +123,10 @@ public final class Awaiting<Element> {
     set {
       lock.lock()
       _storage = newValue
-      let waiting = self.waiting
-      lock.unlock()
-
       for waiter in waiting {
         waiter.resumeIfPossible(with: newValue)
       }
+      lock.unlock()
     }
   }
 
@@ -193,14 +191,17 @@ public final class Awaiting<Element> {
 
     private func resume(with result: Result<Element, Error>) {
       lock.lock()
-      guard let continuation = continuation else {
-        self.result = result
+      guard self.result == nil else {
         lock.unlock()
         return
       }
-      self.continuation = nil
-      lock.unlock()
-      continuation.resume(with: result)
+      self.result = result
+      if let continuation = continuation {
+        lock.unlock()
+        continuation.resume(with: result)
+      } else {
+        lock.unlock()
+      }
     }
 
     func hash(into hasher: inout Hasher) {
