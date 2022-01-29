@@ -137,9 +137,11 @@ final class AwaitingTests: XCTestCase {
     async let value = mock.$property.first(withAtLeast: 5)
 
     // when
-    mock.property = "Fish"
-    mock.property = "Kracken"
-    mock.property = "Chips"
+    Task {
+      mock.property = "Fish"
+      mock.property = "Kracken"
+      mock.property = "Chips"
+    }
 
     // then
     let v1 = try await value
