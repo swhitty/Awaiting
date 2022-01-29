@@ -10,7 +10,7 @@
 
 # Introduction
 
-**@Awaiting** is an open-source Swift `@propertyWrapper` that waits asynchronously until the value matches a predicate.
+**@Awaiting** is a Swift `@propertyWrapper` that waits asynchronously until the value matches a predicate.
 
 # Usage
 
