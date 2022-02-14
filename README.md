@@ -51,4 +51,4 @@ let nonEmpty = try await $names.first(withAtLeast: 1)
 
 # Credits
 
-`@Awaiting` is primarily the work of [Simon Whitty](https://github.com/simonwhitty).
+`@Awaiting` is primarily the work of [Simon Whitty](https://github.com/swhitty).
