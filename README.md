@@ -39,14 +39,19 @@ let name = try await $name.some()
 ```
 
 ### Collections
-
-When collections are wrapped you can wait for at least _n_ elements to exist:
-
+When collections are wrapped you can wait for an element to exist at an index:
 ```swift
 @Awaiting var names = [String]()
 
-// Suspends until names.count >= 1
-let nonEmpty = try await $names.first(withAtLeast: 1)
+// Suspends until names[2] exists
+let name = try await $names.value(at: 2)
+```
+
+Or wait for at least _n_ elements to exist:
+
+```swift
+// Suspends until names.count >= 3
+let nonEmpty = try await $names.first(withAtLeast: 3)
 ```
 
 # Credits
