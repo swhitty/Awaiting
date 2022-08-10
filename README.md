@@ -35,7 +35,7 @@ When optionals are wrapped you can wait for the first non nil value:
 @Awaiting var name: String?
 
 // Suspends until name != nil
-let name = try await $name.first()
+let name = try await $name.some()
 ```
 
 ### Collections
