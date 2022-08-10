@@ -82,6 +82,18 @@ public final class Awaiting<Element> {
       try await first { $0.count >= minCount }
     }
 
+    /// Retrieves element from`wrappedValue` at the suppplied index.
+    ///
+    /// - Parameter index: The index within `wrappedValue` that must exist before the preficate is met.
+    /// - Returns: The element within the collection at the supplied index.
+    ///
+    /// - Throws: `CancellationError` if the task is cancelled.
+    ///
+    public func value(at index: Element.Index) async throws -> Element.Element where Element: Collection {
+        let collection = try await first { $0.indices.contains(index) }
+        return collection[index]
+    }
+
     /// Retrieves and unwraps first`wrappedValue` that is not `nil`.
     ///
     /// - Returns: An unwrapped element when != nil

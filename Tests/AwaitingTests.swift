@@ -163,6 +163,22 @@ final class AwaitingTests: XCTestCase {
       let v1 = try await value
       XCTAssertEqual(v1, 10)
   }
+
+  func testCollectionWaiter_WaitsForElementAtIndex() async throws  {
+    let mock = Mock(Array<Int>())
+    async let value = mock.$property.value(at: 2)
+
+        // when
+    Task {
+      mock.property.append(10)
+      mock.property.append(20)
+      mock.property.append(30)
+    }
+
+    // then
+    let v1 = try await value
+    XCTAssertEqual(v1, 30)
+  }
 }
 
 final class Mock<T>: @unchecked Sendable {
