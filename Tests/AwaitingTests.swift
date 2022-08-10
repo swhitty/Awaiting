@@ -45,7 +45,7 @@ final class AwaitingTests: XCTestCase {
     let mock = Mock<Int?>(10)
 
     // when
-    let value = try await mock.$property.first()
+    let value = try await mock.$property.some()
 
     // then
     XCTAssertEqual(value, 10)
@@ -57,7 +57,7 @@ final class AwaitingTests: XCTestCase {
     mock.property = "Chips"
 
     // when
-    let value = try await mock.$property.first()
+    let value = try await mock.$property.some()
 
     // then
     XCTAssertEqual(value, "Chips")
@@ -67,9 +67,9 @@ final class AwaitingTests: XCTestCase {
     // given
     let mock = Mock<String?>(nil)
 
-    async let value1 = mock.$property.first()
-    async let value2 = mock.$property.first()
-    async let value3 = mock.$property.first()
+    async let value1 = mock.$property.some()
+    async let value2 = mock.$property.some()
+    async let value3 = mock.$property.some()
 
     // when
     Task { mock.property = "Chips" }
@@ -88,7 +88,7 @@ final class AwaitingTests: XCTestCase {
   func testWaitersAreRemoved_WhenComplete() async throws  {
     // given
     let mock = Mock<String?>(nil)
-    async let value1 = mock.$property.first()
+    async let value1 = mock.$property.some()
 
     // when
     mock.property = "Chips"
@@ -103,7 +103,7 @@ final class AwaitingTests: XCTestCase {
     let mock = Mock<String?>("Fish")
     mock.property = "Fish"
     mock.property = nil
-    async let value1 = mock.$property.first()
+    async let value1 = mock.$property.some()
 
     // when
     mock.property = "Chips"
@@ -117,7 +117,7 @@ final class AwaitingTests: XCTestCase {
     // given
     let mock = Mock<String?>(nil)
     let task = Task<String, Error> {
-      try await mock.$property.first()
+      try await mock.$property.some()
     }
 
     // when
@@ -146,6 +146,22 @@ final class AwaitingTests: XCTestCase {
     // then
     let v1 = try await value
     XCTAssertEqual(v1, "Kracken")
+  }
+
+  func testOptionalWaiter_WaitsForPredicate() async throws  {
+      let mock = Mock<Int?>(nil)
+      async let value = mock.$property.some(where: { $0 > 5 })
+
+      // when
+      Task {
+        mock.property = 3
+        mock.property = nil
+        mock.property = 10
+      }
+
+      // then
+      let v1 = try await value
+      XCTAssertEqual(v1, 10)
   }
 }
 

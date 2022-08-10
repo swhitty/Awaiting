@@ -87,8 +87,21 @@ public final class Awaiting<Element> {
     /// - Returns: An unwrapped element when != nil
     ///
     /// - Throws: `CancellationError` if the task is cancelled.
-    public func first<T>() async throws -> T where Element == Optional<T> {
+    public func some<T>() async throws -> T where Element == Optional<T> {
       try await first { $0 != nil }!
+    }
+
+    /// Retrieves first`wrappedValue` that is not nil and matches the supplied predicate.
+    ///
+    /// - Parameter predicate: A closure that takes `wrappedValue` as its argument and returns a
+    ///   Boolean value indicating whether the element is a match.
+    /// - Returns: The `wrappedValue` when it passes the predicate.
+    ///
+    /// - Throws: `CancellationError` if the task is cancelled.
+    public func some<T>(where predicate: @escaping @Sendable (T) -> Bool) async throws -> T where Element == Optional<T> {
+      try await first {
+        $0 != nil && predicate($0!)
+      }!
     }
   }
 
