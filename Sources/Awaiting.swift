@@ -49,200 +49,215 @@ import Foundation
 @propertyWrapper
 public final class Awaiting<Element> {
 
-  public init(wrappedValue: Element) {
-    self._storage = wrappedValue
-  }
-
-  public var projectedValue: Waiter {
-    Waiter(getter: firstValue)
-  }
-
-  public struct Waiter {
-    fileprivate let getter: (@escaping @Sendable (Element) -> Bool) async throws -> Element
-
-    /// Retrieves first`wrappedValue` that matches the supplied predicate.
-    ///
-    /// - Parameter predicate: A closure that takes `wrappedValue` as its argument and returns a
-    ///   Boolean value indicating whether the element is a match.
-    /// - Returns: The `wrappedValue` when it passes the predicate.
-    ///
-    /// - Throws: `CancellationError` if the task is cancelled.
-    public func first(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
-      try await getter(predicate)
+    public init(wrappedValue: Element) {
+        self._storage = wrappedValue
     }
 
-    /// Retrieves first`wrappedValue` that contains >= the requested number of elements.
-    ///
-    /// - Parameter minCount: The minimum number of elements the collection must contain before the predicate is met.
-    /// - Returns: The collection when `count >= minCount`
-    ///
-    /// - Throws: `CancellationError` if the task is cancelled.
-    ///
-    public func first(withAtLeast minCount: Int) async throws -> Element where Element: Collection {
-      try await first { $0.count >= minCount }
+    public var projectedValue: Waiter {
+        Waiter(getter: firstElement)
     }
 
-    /// Retrieves element from`wrappedValue` at the suppplied index.
-    ///
-    /// - Parameter index: The index within `wrappedValue` that must exist before the preficate is met.
-    /// - Returns: The element within the collection at the supplied index.
-    ///
-    /// - Throws: `CancellationError` if the task is cancelled.
-    ///
-    public func value(at index: Element.Index) async throws -> Element.Element where Element: Collection {
-        let collection = try await first { $0.indices.contains(index) }
-        return collection[index]
+    public struct Waiter {
+        fileprivate let getter: (@escaping @Sendable (Element) -> Bool) async throws -> Element
+
+        /// Retrieves first`wrappedValue` that matches the supplied predicate.
+        ///
+        /// - Parameter predicate: A closure that takes `wrappedValue` as its argument and returns a
+        ///   Boolean value indicating whether the element is a match.
+        /// - Returns: The `wrappedValue` when it passes the predicate.
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        public func first(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
+            try await getter(predicate)
+        }
+
+        /// Retrieves first`wrappedValue` that contains >= the requested number of elements.
+        ///
+        /// - Parameter minCount: The minimum number of elements the collection must contain before the predicate is met.
+        /// - Returns: The collection when `count >= minCount`
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        ///
+        public func first(withAtLeast minCount: Int) async throws -> Element where Element: Collection {
+            try await first { $0.count >= minCount }
+        }
+
+        /// Retrieves element from`wrappedValue` at the suppplied index.
+        ///
+        /// - Parameter index: The index within `wrappedValue` that must exist before the preficate is met.
+        /// - Returns: The element within the collection at the supplied index.
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        ///
+        public func value(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
+            let collection = try await first { $0.indices.contains(index) }
+            return collection[index]
+        }
+
+        /// Retrieves and unwraps first`wrappedValue` that is not `nil`.
+        ///
+        /// - Returns: An unwrapped element when != nil
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        public func some<T>() async throws -> T where Element == Optional<T> {
+            try await first { $0 != nil }!
+        }
+
+        /// Retrieves first`wrappedValue` that is not nil and matches the supplied predicate.
+        ///
+        /// - Parameter predicate: A closure that takes `wrappedValue` as its argument and returns a
+        ///   Boolean value indicating whether the element is a match.
+        /// - Returns: The `wrappedValue` when it passes the predicate.
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        public func some<T>(where predicate: @escaping @Sendable (T) -> Bool) async throws -> T where Element == Optional<T> {
+            try await first {
+                $0 != nil && predicate($0!)
+            }!
+        }
     }
 
-    /// Retrieves and unwraps first`wrappedValue` that is not `nil`.
-    ///
-    /// - Returns: An unwrapped element when != nil
-    ///
-    /// - Throws: `CancellationError` if the task is cancelled.
-    public func some<T>() async throws -> T where Element == Optional<T> {
-      try await first { $0 != nil }!
+    @available(*, unavailable, message: "@Awaiting can only be applied to classes")
+    public var wrappedValue: Element {
+        get { fatalError() }
+        set { fatalError() }
     }
 
-    /// Retrieves first`wrappedValue` that is not nil and matches the supplied predicate.
-    ///
-    /// - Parameter predicate: A closure that takes `wrappedValue` as its argument and returns a
-    ///   Boolean value indicating whether the element is a match.
-    /// - Returns: The `wrappedValue` when it passes the predicate.
-    ///
-    /// - Throws: `CancellationError` if the task is cancelled.
-    public func some<T>(where predicate: @escaping @Sendable (T) -> Bool) async throws -> T where Element == Optional<T> {
-      try await first {
-        $0 != nil && predicate($0!)
-      }!
-    }
-  }
-
-  @available(*, unavailable, message: "@Awaiting can only be applied to classes")
-  public var wrappedValue: Element {
-    get { fatalError() }
-    set { fatalError() }
-  }
-
-  // Classes get and set `wrappedValue` using this subscript.
-  public static subscript<T>(_enclosingInstance instance: T,
-                             wrapped wrappedKeyPath: ReferenceWritableKeyPath<T, Element>,
-                             storage storageKeyPath: ReferenceWritableKeyPath<T, Awaiting>) -> Element {
-    get {
-      instance[keyPath: storageKeyPath].storage
-    }
-    set {
-      instance[keyPath: storageKeyPath].storage = newValue
-    }
-  }
-
-  private var _storage: Element
-  private var waiting = Set<Continuation>()
-  private let lock = NSLock()
-
-  private var storage: Element {
-    get {
-      lock.lock()
-      defer { lock.unlock() }
-      return _storage
-    }
-    set {
-      lock.lock()
-      _storage = newValue
-      for waiter in waiting {
-        waiter.resumeIfPossible(with: newValue)
-      }
-      lock.unlock()
-    }
-  }
-
-  private func firstValue(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
-    lock.lock()
-    if predicate(_storage) {
-      lock.unlock()
-      return _storage
+    // Classes get and set `wrappedValue` using this subscript.
+    public static subscript<T>(_enclosingInstance instance: T,
+                               wrapped wrappedKeyPath: ReferenceWritableKeyPath<T, Element>,
+                               storage storageKeyPath: ReferenceWritableKeyPath<T, Awaiting>) -> Element {
+        get {
+            instance[keyPath: storageKeyPath].storage
+        }
+        set {
+            instance[keyPath: storageKeyPath].storage = newValue
+        }
     }
 
-    let continuation = Continuation(predicate: predicate)
-    waiting.insert(continuation)
-    lock.unlock()
-
-    defer {
-      lock.lock()
-      waiting.remove(continuation)
-      lock.unlock()
-    }
-
-    return try await withTaskCancellationHandler(
-      operation: continuation.getValue,
-      onCancel: continuation.cancel
-    )
-  }
-
-  private final class Continuation: Hashable {
-    private let predicate: @Sendable (Element) -> Bool
-    private var continuation: CheckedContinuation<Element, Error>?
-    private var result: Result<Element, Error>?
+    private var _storage: Element
+    private var waiting = Set<Continuation>()
     private let lock = NSLock()
 
-    init(predicate: @escaping @Sendable (Element) -> Bool) {
-      self.predicate = predicate
-    }
-
-    @Sendable
-    func getValue() async throws -> Element {
-      try await withCheckedThrowingContinuation {
-        lock.lock()
-        guard let result = result else {
-          self.continuation = $0
-          lock.unlock()
-          return
+    private var storage: Element {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _storage
         }
+        set {
+            lock.lock()
+            _storage = newValue
+            for waiter in waiting {
+                waiter.resumeIfPossible(with: newValue)
+            }
+            lock.unlock()
+        }
+    }
+
+    private func firstValue(where predicate: @escaping @Sendable (Element) -> Bool) -> Value {
+        lock.lock()
+        if predicate(_storage) {
+            lock.unlock()
+            return .element(_storage)
+        }
+
+        let continuation = Continuation(predicate: predicate)
+        waiting.insert(continuation)
         lock.unlock()
-        $0.resume(with: result)
-      }
+        return .continuation(continuation)
     }
 
-    @Sendable
-    func resumeIfPossible(with value: Element) {
-      if predicate(value) {
-        resume(with: .success(value))
-      }
+    private func firstElement(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
+
+        switch firstValue(where: predicate) {
+        case let .element(value):
+            return value
+        case let .continuation(continuation):
+            defer {
+                lock.lock()
+                waiting.remove(continuation)
+                lock.unlock()
+            }
+
+            return try await withTaskCancellationHandler(
+                operation: continuation.getValue,
+                onCancel: continuation.cancel
+            )
+        }
     }
 
-    @Sendable
-    func cancel() {
-      resume(with: .failure(CancellationError()))
+
+    private enum Value {
+        case element(Element)
+        case continuation(Continuation)
     }
 
-    private func resume(with result: Result<Element, Error>) {
-      lock.lock()
-      guard self.result == nil else {
-        lock.unlock()
-        return
-      }
-      self.result = result
-      if let continuation = continuation {
-        lock.unlock()
-        continuation.resume(with: result)
-      } else {
-        lock.unlock()
-      }
-    }
+    private final class Continuation: Hashable {
+        private let predicate: @Sendable (Element) -> Bool
+        private var continuation: CheckedContinuation<Element, Error>?
+        private var result: Result<Element, Error>?
+        private let lock = NSLock()
 
-    func hash(into hasher: inout Hasher) {
-      ObjectIdentifier(self).hash(into: &hasher)
-    }
+        init(predicate: @escaping @Sendable (Element) -> Bool) {
+            self.predicate = predicate
+        }
 
-    static func == (lhs: Awaiting<Element>.Continuation, rhs: Awaiting<Element>.Continuation) -> Bool {
-      lhs === rhs
+        @Sendable
+        func getValue() async throws -> Element {
+            try await withCheckedThrowingContinuation {
+                lock.lock()
+                guard let result = result else {
+                    self.continuation = $0
+                    lock.unlock()
+                    return
+                }
+                lock.unlock()
+                $0.resume(with: result)
+            }
+        }
+
+        @Sendable
+        func resumeIfPossible(with value: Element) {
+            if predicate(value) {
+                resume(with: .success(value))
+            }
+        }
+
+        @Sendable
+        func cancel() {
+            resume(with: .failure(CancellationError()))
+        }
+
+        private func resume(with result: Result<Element, Error>) {
+            lock.lock()
+            guard self.result == nil else {
+                lock.unlock()
+                return
+            }
+            self.result = result
+            if let continuation = continuation {
+                lock.unlock()
+                continuation.resume(with: result)
+            } else {
+                lock.unlock()
+            }
+        }
+
+        func hash(into hasher: inout Hasher) {
+            ObjectIdentifier(self).hash(into: &hasher)
+        }
+
+        static func == (lhs: Awaiting<Element>.Continuation, rhs: Awaiting<Element>.Continuation) -> Bool {
+            lhs === rhs
+        }
     }
-  }
 }
 
 extension Awaiting {
-  var isWaitingEmpty: Bool {
-    lock.lock()
-    defer { lock.unlock() }
-    return waiting.isEmpty
-  }
+    var isWaitingEmpty: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return waiting.isEmpty
+    }
 }
