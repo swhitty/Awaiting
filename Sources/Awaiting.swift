@@ -57,8 +57,8 @@ public final class Awaiting<Element> {
         Waiter(getter: firstElement)
     }
 
-    public struct Waiter {
-        fileprivate let getter: (@escaping @Sendable (Element) -> Bool) async throws -> Element
+    public struct Waiter: Sendable {
+        fileprivate let getter: @Sendable (@escaping @Sendable (Element) -> Bool) async throws -> Element
 
         /// Retrieves first`wrappedValue` that matches the supplied predicate.
         ///
@@ -168,8 +168,8 @@ public final class Awaiting<Element> {
         return .continuation(continuation)
     }
 
+    @Sendable
     private func firstElement(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
-
         switch firstValue(where: predicate) {
         case let .element(value):
             return value
@@ -186,7 +186,6 @@ public final class Awaiting<Element> {
             )
         }
     }
-
 
     private enum Value {
         case element(Element)
