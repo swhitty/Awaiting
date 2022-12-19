@@ -135,23 +135,30 @@ public final class Awaiting<Element> {
         }
     }
 
+    /// Acquires lock and executes transformation closure on element.
+    /// - Parameter transform: Closure is performed when lock is acquired. `element` can be mutated
+    /// - Returns: Forwards returned value from transform closure
+    @discardableResult
+    public func modify<U>(_ transform: (inout Element) throws -> U) rethrows -> U {
+      lock.lock()
+      defer { lock.unlock() }
+      let result = try transform(&_storage)
+      for waiter in waiting {
+        waiter.resumeIfPossible(with: _storage)
+      }
+      return result
+    }
+
     private var _storage: Element
     private var waiting = Set<Continuation>()
     private let lock = NSLock()
 
     private var storage: Element {
         get {
-            lock.lock()
-            defer { lock.unlock() }
-            return _storage
+            modify{ $0 }
         }
         set {
-            lock.lock()
-            _storage = newValue
-            for waiter in waiting {
-                waiter.resumeIfPossible(with: newValue)
-            }
-            lock.unlock()
+            modify{ $0 = newValue }
         }
     }
 

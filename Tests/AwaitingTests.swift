@@ -179,6 +179,19 @@ final class AwaitingTests: XCTestCase {
     let v1 = try await value
     XCTAssertEqual(v1, 30)
   }
+
+  func testModify_TriggersWaiter() async throws {
+    // given
+    let mock = Mock<Int?>(nil)
+    async let value = mock.$property.some()
+
+    // when
+    mock.modify { $0 = 200 }
+
+    // then
+    let v1 = try await value
+    XCTAssertEqual(v1, 200)
+  }
 }
 
 final class Mock<T>: @unchecked Sendable {
@@ -190,5 +203,10 @@ final class Mock<T>: @unchecked Sendable {
 
   var isWaitingEmpty: Bool {
     _property.isWaitingEmpty
+  }
+
+  @discardableResult
+  func modify<U>(_ transform: (inout T) throws -> U) rethrows -> U {
+    try _property.modify(transform)
   }
 }
