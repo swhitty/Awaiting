@@ -180,6 +180,38 @@ final class AwaitingTests: XCTestCase {
     XCTAssertEqual(v1, 30)
   }
 
+  func testEquatableWaiter_WaitsForElement() async throws  {
+    let mock = Mock(0)
+    async let value = mock.$property.equals(30)
+
+    // when
+    Task {
+      mock.property = 10
+      mock.property = 20
+      mock.property = 30
+    }
+
+    // then
+    let v1 = try await value
+    XCTAssertEqual(v1, 30)
+  }
+
+  func testEquatableWaiter_WaitsForOptionalElement() async throws  {
+    let mock = Mock(Optional<String>.none)
+    async let value = mock.$property.equals("Fish")
+
+    // when
+    Task {
+      mock.property = "chips"
+      mock.property = "fish"
+      mock.property = "Fish"
+    }
+
+    // then
+    let v1 = try await value
+    XCTAssertEqual(v1, "Fish")
+  }
+
   func testModify_TriggersWaiter() async throws {
     // given
     let mock = Mock<Int?>(nil)

@@ -39,6 +39,17 @@ When optionals are wrapped you can wait for the first non nil value:
 let name = try await $name.some()
 ```
 
+### Equatables
+
+When equatables are wrapped you can wait for the first value that equals an element:
+
+```swift
+@Awaiting var name: String?
+
+// Suspends until name == "Fish"
+try await $name.equals("Fish")
+```
+
 ### Collections
 When collections are wrapped you can wait for an element to exist at an index:
 ```swift

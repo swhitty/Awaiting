@@ -115,6 +115,17 @@ public final class Awaiting<Element> {
                 $0 != nil && predicate($0!)
             }!
         }
+
+        /// Waits until first`wrappedValue` equals the supplied element
+        ///
+        /// - Parameter element: The element to wait for.
+        /// - Returns: The `wrappedValue` that equals the supplied element.
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        @discardableResult
+        public func equals(_ element: Element) async throws -> Element where Element: Equatable {
+            try await first { $0 == element }
+        }
     }
 
     @available(*, unavailable, message: "@Awaiting can only be applied to classes")
