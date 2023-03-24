@@ -21,7 +21,7 @@ You then use its [projected value](https://docs.swift.org/swift-book/LanguageGui
 
 ```swift
 // Suspends until isComplete == true
-_ = try await $isComplete.first(where: { $0 })
+_ = try await $isComplete.first(where: { $0 == true })
 ```
 
 ### Cancellation
