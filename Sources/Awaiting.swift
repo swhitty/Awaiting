@@ -47,7 +47,7 @@ import Foundation
 ///  let name = try await $age.first(where: { $0 > 92 }) // waits until age > 92
 ///  ```
 @propertyWrapper
-public final class Awaiting<Element> {
+public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
     public init(wrappedValue: Element) {
         self._storage = wrappedValue
