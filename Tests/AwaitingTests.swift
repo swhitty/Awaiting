@@ -226,7 +226,7 @@ final class AwaitingTests: XCTestCase {
     }
 }
 
-final class Mock<T>: @unchecked Sendable {
+final class Mock<T: Sendable>: @unchecked Sendable {
     @Awaiting var property: T
 
     init(_ initial: T) {
