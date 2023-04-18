@@ -151,13 +151,13 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     /// - Returns: Forwards returned value from transform closure
     @discardableResult
     public func modify<U>(_ transform: (inout Element) throws -> U) rethrows -> U {
-      lock.lock()
-      defer { lock.unlock() }
-      let result = try transform(&_storage)
-      for waiter in waiting {
-        waiter.resumeIfPossible(with: _storage)
-      }
-      return result
+        try lock.withLock {
+            let result = try transform(&_storage)
+            for waiter in waiting {
+              waiter.resumeIfPossible(with: _storage)
+            }
+            return result
+        }
     }
 
     private var _storage: Element
@@ -174,16 +174,15 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     }
 
     private func firstValue(where predicate: @escaping @Sendable (Element) -> Bool) -> Value {
-        lock.lock()
-        if predicate(_storage) {
-            lock.unlock()
-            return .element(_storage)
+        lock.withLock { () -> Value in
+            if predicate(self._storage) {
+                return .element(_storage)
+            } else {
+                let continuation = Continuation(predicate: predicate)
+                self.waiting.insert(continuation)
+                return .continuation(continuation)
+            }
         }
-
-        let continuation = Continuation(predicate: predicate)
-        waiting.insert(continuation)
-        lock.unlock()
-        return .continuation(continuation)
     }
 
     @Sendable
@@ -193,9 +192,9 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
             return value
         case let .continuation(continuation):
             defer {
-                lock.lock()
-                waiting.remove(continuation)
-                lock.unlock()
+                lock.withLock {
+                    _ = waiting.remove(continuation)
+                }
             }
 
             return try await withTaskCancellationHandler(
@@ -222,15 +221,15 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
         @Sendable
         func getValue() async throws -> Element {
-            try await withCheckedThrowingContinuation {
-                lock.lock()
-                guard let result = result else {
-                    self.continuation = $0
-                    lock.unlock()
-                    return
+            try await withCheckedThrowingContinuation { continuation in
+                let result = lock.withLock {
+                    if self.result == nil {
+                        self.continuation = continuation
+                    }
+                    return self.result
                 }
-                lock.unlock()
-                $0.resume(with: result)
+                guard let result = result else { return }
+                continuation.resume(with: result)
             }
         }
 
@@ -247,17 +246,16 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         }
 
         private func resume(with result: Result<Element, Error>) {
-            lock.lock()
-            guard self.result == nil else {
-                lock.unlock()
+            let (existingResult, continuation) = lock.withLock {
+                (self.result, self.continuation)
+            }
+
+            guard existingResult == nil else {
                 return
             }
             self.result = result
             if let continuation = continuation {
-                lock.unlock()
                 continuation.resume(with: result)
-            } else {
-                lock.unlock()
             }
         }
 
@@ -273,8 +271,6 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
 extension Awaiting {
     var isWaitingEmpty: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return waiting.isEmpty
+        lock.withLock { self.waiting.isEmpty }
     }
 }
