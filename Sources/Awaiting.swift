@@ -222,7 +222,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         @Sendable
         func getValue() async throws -> Element {
             try await withCheckedThrowingContinuation { continuation in
-                let result = lock.withLock {
+                let result: Result<Element, Error>? = lock.withLock {
                     if self.result == nil {
                         self.continuation = continuation
                     }
@@ -246,7 +246,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         }
 
         private func resume(with result: Result<Element, Error>) {
-            let (existingResult, continuation) = lock.withLock {
+            let (existingResult, continuation) = lock.withLock { () -> (Result<Element, Error>?, continuation: CheckedContinuation<Element, Error>?) in
                 (self.result, self.continuation)
             }
 
@@ -274,3 +274,14 @@ extension Awaiting {
         lock.withLock { self.waiting.isEmpty }
     }
 }
+
+
+#if canImport(Glibc)
+private extension NSLocking {
+    func withLock<R>(_ body: () throws -> R) rethrows -> R {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
+}
+#endif
