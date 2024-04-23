@@ -89,9 +89,34 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
         ///
+        @available(*, deprecated, renamed: "element(at:)")
         public func value(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
+            try await element(at: index)
+        }
+
+        /// Retrieves element from`wrappedValue` at the suppplied index.
+        ///
+        /// - Parameter index: The index within `wrappedValue` that must exist before the preficate is met.
+        /// - Returns: The element within the collection at the supplied index.
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        ///
+        public func element(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
             let collection = try await first { $0.indices.contains(index) }
             return collection[index]
+        }
+
+        /// Retrieves element from`wrappedValue` that matches the suppplied predicate.
+        ///
+        /// - Parameter predicate: A closure that takes the element of `wrappedValue`  as its argument and returns a
+        ///   Boolean value indicating whether the element is a match.
+        /// - Returns: The  first element of`wrappedValue` that passes the predicate.
+        ///
+        /// - Throws: `CancellationError` if the task is cancelled.
+        ///
+        public func element(where predicate: @escaping @Sendable (Element.Element) -> Bool) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
+            let collection = try await first { $0.contains(where: predicate) }
+            return collection.first(where: predicate)!
         }
 
         /// Retrieves and unwraps first`wrappedValue` that is not `nil`.

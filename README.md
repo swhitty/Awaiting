@@ -56,7 +56,13 @@ When collections are wrapped you can wait for an element to exist at an index:
 @Awaiting var names = [String]()
 
 // Suspends until names[2] exists
-let name = try await $names.value(at: 2)
+let name = try await $names.element(at: 2)
+```
+
+Or wait for an element that matches the predicate:
+```swift
+// Suspends until a name contains an element that contains 5 or more letters
+let name = try await $names.element { $0.count > 5}
 ```
 
 Or wait for at least _n_ elements to exist:

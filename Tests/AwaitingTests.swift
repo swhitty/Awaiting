@@ -164,7 +164,7 @@ final class AwaitingTests: XCTestCase {
         XCTAssertEqual(v1, 10)
     }
 
-    func testCollectionWaiter_WaitsForElementAtIndex() async throws  {
+    func testCollectionWaiter_WaitsForValueAtIndex() async throws  {
         let mock = Mock(Array<Int>())
         async let value = mock.$property.value(at: 2)
 
@@ -178,6 +178,38 @@ final class AwaitingTests: XCTestCase {
         // then
         let v1 = try await value
         XCTAssertEqual(v1, 30)
+    }
+
+    func testCollectionWaiter_WaitsForElementAtIndex() async throws  {
+        let mock = Mock(Array<Int>())
+        async let value = mock.$property.element(at: 2)
+
+        // when
+        Task {
+            mock.property.append(10)
+            mock.property.append(20)
+            mock.property.append(30)
+        }
+
+        // then
+        let v1 = try await value
+        XCTAssertEqual(v1, 30)
+    }
+
+    func testCollectionWaiter_WaitsForElementThatMatchesPredicate() async throws  {
+        let mock = Mock(Array<Int>())
+        async let value = mock.$property.element(where: { $0.isMultiple(of: 7) })
+
+        // when
+        Task {
+            mock.property.append(10)
+            mock.property.append(20)
+            mock.property.append(21)
+        }
+
+        // then
+        let v1 = try await value
+        XCTAssertEqual(v1, 21)
     }
 
     func testEquatableWaiter_WaitsForElement() async throws  {
