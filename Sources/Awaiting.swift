@@ -224,7 +224,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
             return try await withTaskCancellationHandler(
                 operation: continuation.getValue,
-                onCancel: continuation.cancel
+                onCancel: { continuation.cancel() }
             )
         }
     }
@@ -234,20 +234,19 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         case continuation(Continuation)
     }
 
-    private final class Continuation: Hashable {
+    private final class Continuation: Hashable, @unchecked Sendable {
         private let predicate: @Sendable (Element) -> Bool
-        private var continuation: CheckedContinuation<Element, Error>?
-        private var result: Result<Element, Error>?
+        private var continuation: CheckedContinuation<Element, any Error>?
+        private var result: Result<Element, any Error>?
         private let lock = NSLock()
 
         init(predicate: @escaping @Sendable (Element) -> Bool) {
             self.predicate = predicate
         }
 
-        @Sendable
         func getValue() async throws -> Element {
             try await withCheckedThrowingContinuation { continuation in
-                let result: Result<Element, Error>? = lock.withLock {
+                let result: Result<Element, any Error>? = lock.withLock {
                     if self.result == nil {
                         self.continuation = continuation
                     }
@@ -258,20 +257,18 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
             }
         }
 
-        @Sendable
         func resumeIfPossible(with value: Element) {
             if predicate(value) {
                 resume(with: .success(value))
             }
         }
 
-        @Sendable
         func cancel() {
             resume(with: .failure(CancellationError()))
         }
 
-        private func resume(with result: Result<Element, Error>) {
-            let continuation: CheckedContinuation<Element, Error>? = lock.withLock {
+        private func resume(with result: Result<Element, any Error>) {
+            let continuation: CheckedContinuation<Element, any Error>? = lock.withLock {
                 guard self.result == nil else { return nil }
                 self.result = result
                 return self.continuation

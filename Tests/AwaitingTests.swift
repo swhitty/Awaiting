@@ -116,7 +116,7 @@ final class AwaitingTests: XCTestCase {
     func testCancellingTask_ThrowsCancellationError() async {
         // given
         let mock = Mock<String?>(nil)
-        let task = Task<String, Error> {
+        let task = Task<String, any Error> {
             try await mock.$property.some()
         }
 
