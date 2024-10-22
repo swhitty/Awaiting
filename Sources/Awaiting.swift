@@ -50,7 +50,7 @@ import Foundation
 public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
     public init(wrappedValue: Element) {
-        self._storage = wrappedValue
+        self.mutex = .init(State(storage: wrappedValue))
     }
 
     public var projectedValue: Waiter {
@@ -176,18 +176,21 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     /// - Returns: Forwards returned value from transform closure
     @discardableResult
     public func modify<U>(_ transform: (inout Element) throws -> U) rethrows -> U {
-        try lock.withLock {
-            let result = try transform(&_storage)
-            for waiter in waiting {
-              waiter.resumeIfPossible(with: _storage)
+        try mutex.withLock { state in
+            let result = try transform(&state.storage)
+            for waiter in state.waiting {
+                waiter.resumeIfPossible(with: state.storage)
             }
             return result
         }
     }
 
-    private var _storage: Element
-    private var waiting = Set<Continuation>()
-    private let lock = NSLock()
+    private let mutex: Mutex<State>
+
+    private struct State {
+        var storage: Element
+        var waiting: Set<Continuation> = []
+    }
 
     private var storage: Element {
         get {
@@ -199,12 +202,12 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     }
 
     private func firstValue(where predicate: @escaping @Sendable (Element) -> Bool) -> Value {
-        lock.withLock { () -> Value in
-            if predicate(self._storage) {
-                return .element(_storage)
+        mutex.withLock { state in
+            if predicate(state.storage) {
+                return .element(state.storage)
             } else {
                 let continuation = Continuation(predicate: predicate)
-                self.waiting.insert(continuation)
+                state.waiting.insert(continuation)
                 return .continuation(continuation)
             }
         }
@@ -217,8 +220,8 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
             return value
         case let .continuation(continuation):
             defer {
-                lock.withLock {
-                    _ = waiting.remove(continuation)
+                mutex.withLock {
+                    _ = $0.waiting.remove(continuation)
                 }
             }
 
@@ -236,9 +239,12 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
     private final class Continuation: Hashable, @unchecked Sendable {
         private let predicate: @Sendable (Element) -> Bool
-        private var continuation: CheckedContinuation<Element, any Error>?
-        private var result: Result<Element, any Error>?
-        private let lock = NSLock()
+        private let state = Mutex<State?>(nil)
+
+        private enum State {
+            case continuation(CheckedContinuation<Element, any Error>)
+            case result(Result<Element, any Error>)
+        }
 
         init(predicate: @escaping @Sendable (Element) -> Bool) {
             self.predicate = predicate
@@ -246,14 +252,20 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
         func getValue() async throws -> Element {
             try await withCheckedThrowingContinuation { continuation in
-                let result: Result<Element, any Error>? = lock.withLock {
-                    if self.result == nil {
-                        self.continuation = continuation
+                let result: Result<Element, any Error>? = state.withLock {
+                    switch $0 {
+                    case .result(let result):
+                        return result
+                    case .continuation:
+                        preconditionFailure("cannot continue multiple times")
+                    case .none:
+                        $0 = .continuation(continuation)
                     }
-                    return self.result
+                    return nil
                 }
-                guard let result = result else { return }
-                continuation.resume(with: result)
+                if let result {
+                    continuation.resume(with: result)
+                }
             }
         }
 
@@ -268,13 +280,20 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         }
 
         private func resume(with result: Result<Element, any Error>) {
-            let continuation: CheckedContinuation<Element, any Error>? = lock.withLock {
-                guard self.result == nil else { return nil }
-                self.result = result
-                return self.continuation
+            let continuation: CheckedContinuation<Element, any Error>? = state.withLock {
+                switch $0 {
+                case .result:
+                    // already resumed
+                    return nil
+                case .continuation(let c):
+                    $0 = .result(result)
+                    return c
+                case .none:
+                    $0 = .result(result)
+                    return nil
+                }
             }
-
-            if let continuation = continuation {
+            if let continuation {
                 continuation.resume(with: result)
             }
         }
@@ -291,17 +310,6 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
 extension Awaiting {
     var isWaitingEmpty: Bool {
-        lock.withLock { self.waiting.isEmpty }
+        mutex.withLock { $0.waiting.isEmpty }
     }
 }
-
-
-#if canImport(Glibc) || compiler(<5.7)
-private extension NSLocking {
-    func withLock<R>(_ body: () throws -> R) rethrows -> R {
-        lock()
-        defer { unlock() }
-        return try body()
-    }
-}
-#endif

@@ -1,4 +1,4 @@
-// swift-tools-version:5.7
+// swift-tools-version:5.9
 
 import PackageDescription
 
@@ -16,12 +16,24 @@ let package = Package(
     targets: [
         .target(
             name: "Awaiting",
-			path: "Sources"
+			path: "Sources",
+            swiftSettings: .upcomingFeatures
 		),
         .testTarget(
             name: "AwaitingTests",
 			dependencies: ["Awaiting"],
-			path: "Tests"
+			path: "Tests",
+            swiftSettings: .upcomingFeatures
 		)
     ]
 )
+
+extension Array where Element == SwiftSetting {
+
+    static var upcomingFeatures: [SwiftSetting] {
+        [
+            .enableUpcomingFeature("ExistentialAny"),
+            .enableExperimentalFeature("StrictConcurrency")
+        ]
+    }
+}
