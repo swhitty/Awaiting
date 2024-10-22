@@ -29,21 +29,19 @@
 //  SOFTWARE.
 //
 
-#if canImport(Testing)
+#if !canImport(Testing)
 @testable import Awaiting
-import Testing
+import XCTest
 
-struct AwaitingTests {
+final class AwaitingTests: XCTestCase {
 
-    @Test
-    func wrappedValueUpdates() {
+    func testWrappedValueUpdates() {
         let mock = Mock("")
         mock.property = "Shrimp"
-        #expect(mock.property == "Shrimp")
+        XCTAssertEqual(mock.property, "Shrimp")
     }
 
-    @Test
-    func initializesWithValue() async throws {
+    func testInitializesWithValue() async throws {
         // given
         let mock = Mock<Int?>(10)
 
@@ -51,11 +49,10 @@ struct AwaitingTests {
         let value = try await mock.$property.some()
 
         // then
-        #expect(value == 10)
+        XCTAssertEqual(value, 10)
     }
 
-    @Test
-    func lateTask_ReceivesTheWrappedValue() async throws  {
+    func testLateTask_ReceivesTheWrappedValue() async throws  {
         // given
         let mock = Mock<String?>("Fish")
         mock.property = "Chips"
@@ -64,11 +61,10 @@ struct AwaitingTests {
         let value = try await mock.$property.some()
 
         // then
-        #expect(value == "Chips")
+        XCTAssertEqual(value, "Chips")
     }
 
-    @Test
-    func multipleTasks_ReceiveTheWrappedValue() async throws {
+    func testMultipleTasks_ReceiveTheWrappedValue() async throws {
         // given
         let mock = Mock<String?>(nil)
 
@@ -80,13 +76,17 @@ struct AwaitingTests {
         Task { mock.property = "Chips" }
 
         // then
-        #expect(try await value1 == "Chips")
-        #expect(try await value2 == "Chips")
-        #expect(try await value3 == "Chips")
+        let v1 = try await value1
+        XCTAssertEqual(v1, "Chips")
+
+        let v2 = try await value2
+        XCTAssertEqual(v2, "Chips")
+
+        let v3 = try await value3
+        XCTAssertEqual(v3, "Chips")
     }
 
-    @Test
-    func waitersAreRemoved_WhenComplete() async throws  {
+    func testWaitersAreRemoved_WhenComplete() async throws  {
         // given
         let mock = Mock<String?>(nil)
         async let value1 = mock.$property.some()
@@ -96,11 +96,10 @@ struct AwaitingTests {
         _ = try await value1
 
         // then
-        #expect(mock.isWaitingEmpty)
+        XCTAssertTrue(mock.isWaitingEmpty)
     }
 
-    @Test
-    func nil_MakesTaskWait() async throws {
+    func testNil_MakesTaskWait() async throws {
         // given
         let mock = Mock<String?>("Fish")
         mock.property = "Fish"
@@ -111,11 +110,11 @@ struct AwaitingTests {
         mock.property = "Chips"
 
         // then
-        #expect(try await value1 == "Chips")
+        let v1 = try await value1
+        XCTAssertEqual(v1, "Chips")
     }
 
-    @Test
-    func cancellingTask_ThrowsCancellationError() async {
+    func testCancellingTask_ThrowsCancellationError() async {
         // given
         let mock = Mock<String?>(nil)
         let task = Task<String, any Error> {
@@ -126,13 +125,15 @@ struct AwaitingTests {
         task.cancel()
 
         // then
-        await #expect(throws: CancellationError.self) {
+        do {
             _ = try await task.value
+            XCTFail("Expected Error")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
         }
     }
 
-    @Test
-    func collectionWaiter_WaitsForMinimumElements() async throws  {
+    func testCollectionWaiter_WaitsForMinimumElements() async throws  {
         let mock = Mock("")
         async let value = mock.$property.first(withAtLeast: 5)
 
@@ -144,11 +145,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == "Kracken")
+        let v1 = try await value
+        XCTAssertEqual(v1, "Kracken")
     }
 
-    @Test
-    func optionalWaiter_WaitsForPredicate() async throws  {
+    func testOptionalWaiter_WaitsForPredicate() async throws  {
         let mock = Mock<Int?>(nil)
         async let value = mock.$property.some(where: { $0 > 5 })
 
@@ -160,11 +161,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == 10)
+        let v1 = try await value
+        XCTAssertEqual(v1, 10)
     }
 
-    @Test
-    func collectionWaiter_WaitsForValueAtIndex() async throws  {
+    func testCollectionWaiter_WaitsForValueAtIndex() async throws  {
         let mock = Mock(Array<Int>())
         async let value = mock.$property.value(at: 2)
 
@@ -176,11 +177,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == 30)
+        let v1 = try await value
+        XCTAssertEqual(v1, 30)
     }
 
-    @Test
-    func collectionWaiter_WaitsForElementAtIndex() async throws  {
+    func testCollectionWaiter_WaitsForElementAtIndex() async throws  {
         let mock = Mock(Array<Int>())
         async let value = mock.$property.element(at: 2)
 
@@ -192,11 +193,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == 30)
+        let v1 = try await value
+        XCTAssertEqual(v1, 30)
     }
 
-    @Test
-    func collectionWaiter_WaitsForElementThatMatchesPredicate() async throws  {
+    func testCollectionWaiter_WaitsForElementThatMatchesPredicate() async throws  {
         let mock = Mock(Array<Int>())
         async let value = mock.$property.element(where: { $0.isMultiple(of: 7) })
 
@@ -208,11 +209,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == 21)
+        let v1 = try await value
+        XCTAssertEqual(v1, 21)
     }
 
-    @Test
-    func equatableWaiter_WaitsForElement() async throws  {
+    func testEquatableWaiter_WaitsForElement() async throws  {
         let mock = Mock(0)
         async let value = mock.$property.equals(30)
 
@@ -224,11 +225,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == 30)
+        let v1 = try await value
+        XCTAssertEqual(v1, 30)
     }
 
-    @Test
-    func equatableWaiter_WaitsForOptionalElement() async throws  {
+    func testEquatableWaiter_WaitsForOptionalElement() async throws  {
         let mock = Mock(Optional<String>.none)
         async let value = mock.$property.equals("Fish")
 
@@ -240,11 +241,11 @@ struct AwaitingTests {
         }
 
         // then
-        #expect(try await value == "Fish")
+        let v1 = try await value
+        XCTAssertEqual(v1, "Fish")
     }
 
-    @Test
-    func modify_TriggersWaiter() async throws {
+    func testModify_TriggersWaiter() async throws {
         // given
         let mock = Mock<Int?>(nil)
         async let value = mock.$property.some()
@@ -253,7 +254,8 @@ struct AwaitingTests {
         mock.modify { $0 = 200 }
 
         // then
-        #expect(try await value == 200)
+        let v1 = try await value
+        XCTAssertEqual(v1, 200)
     }
 }
 
