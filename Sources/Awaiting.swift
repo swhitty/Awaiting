@@ -58,7 +58,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     }
 
     public struct Waiter: Sendable {
-        fileprivate let getter: @Sendable (@escaping @Sendable (Element) -> Bool) async throws -> Element
+        fileprivate let getter: nonisolated(nonsending) @Sendable (@escaping @Sendable (Element) -> Bool) async throws -> Element
 
         /// Retrieves first`wrappedValue` that matches the supplied predicate.
         ///
@@ -67,7 +67,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         /// - Returns: The `wrappedValue` when it passes the predicate.
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
-        public func first(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
+        public nonisolated(nonsending) func first(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
             try await getter(predicate)
         }
 
@@ -78,7 +78,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
         ///
-        public func first(withAtLeast minCount: Int) async throws -> Element where Element: Collection {
+        public nonisolated(nonsending) func first(withAtLeast minCount: Int) async throws -> Element where Element: Collection {
             try await first { $0.count >= minCount }
         }
 
@@ -90,7 +90,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         /// - Throws: `CancellationError` if the task is cancelled.
         ///
         @available(*, deprecated, renamed: "element(at:)")
-        public func value(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
+        public nonisolated(nonsending) func value(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
             try await element(at: index)
         }
 
@@ -101,7 +101,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
         ///
-        public func element(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
+        public nonisolated(nonsending) func element(at index: Element.Index) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
             let collection = try await first { $0.indices.contains(index) }
             return collection[index]
         }
@@ -114,7 +114,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
         ///
-        public func element(where predicate: @escaping @Sendable (Element.Element) -> Bool) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
+        public nonisolated(nonsending) func element(where predicate: @escaping @Sendable (Element.Element) -> Bool) async throws -> Element.Element where Element: Collection, Element.Index: Sendable {
             let collection = try await first { $0.contains(where: predicate) }
             return collection.first(where: predicate)!
         }
@@ -124,7 +124,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         /// - Returns: An unwrapped element when != nil
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
-        public func some<T>() async throws -> T where Element == Optional<T> {
+        public nonisolated(nonsending) func some<T>() async throws -> T where Element == Optional<T> {
             try await first { $0 != nil }!
         }
 
@@ -135,7 +135,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         /// - Returns: The `wrappedValue` when it passes the predicate.
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
-        public func some<T>(where predicate: @escaping @Sendable (T) -> Bool) async throws -> T where Element == Optional<T> {
+        public nonisolated(nonsending) func some<T>(where predicate: @escaping @Sendable (T) -> Bool) async throws -> T where Element == Optional<T> {
             try await first {
                 $0 != nil && predicate($0!)
             }!
@@ -148,7 +148,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
         ///
         /// - Throws: `CancellationError` if the task is cancelled.
         @discardableResult
-        public func equals(_ element: Element) async throws -> Element where Element: Equatable {
+        public nonisolated(nonsending) func equals(_ element: Element) async throws -> Element where Element: Equatable {
             try await first { $0 == element }
         }
     }
@@ -176,13 +176,16 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     /// - Returns: Forwards returned value from transform closure
     @discardableResult
     public func modify<U>(_ transform: (inout Element) throws -> U) rethrows -> U {
-        try mutex.withLock { state in
+        let (result, value, waiting) = try mutex.withLock { state in
             let result = try transform(&state.storage)
-            for waiter in state.waiting {
-                waiter.resumeIfPossible(with: state.storage)
-            }
-            return result
+            return (result, state.storage, state.waiting)
         }
+
+        for waiter in waiting {
+            waiter.resumeIfPossible(with: value)
+        }
+
+        return result
     }
 
     private let mutex: Mutex<State>
@@ -194,7 +197,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 
     private var storage: Element {
         get {
-            modify{ $0 }
+            mutex.withLock { $0.storage }
         }
         set {
             modify{ $0 = newValue }
@@ -202,19 +205,22 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
     }
 
     private func firstValue(where predicate: @escaping @Sendable (Element) -> Bool) -> Value {
-        mutex.withLock { state in
-            if predicate(state.storage) {
-                return .element(state.storage)
-            } else {
-                let continuation = Continuation(predicate: predicate)
-                state.waiting.insert(continuation)
-                return .continuation(continuation)
-            }
+        let value = mutex.withLock { $0.storage }
+        if predicate(value) {
+            return .element(value)
         }
+
+        let continuation = Continuation(predicate: predicate)
+        let currentValue = mutex.withLock { state in
+            state.waiting.insert(continuation)
+            return state.storage
+        }
+        continuation.resumeIfPossible(with: currentValue)
+        return .continuation(continuation)
     }
 
     @Sendable
-    private func firstElement(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
+    private nonisolated(nonsending) func firstElement(where predicate: @escaping @Sendable (Element) -> Bool) async throws -> Element {
         switch firstValue(where: predicate) {
         case let .element(value):
             return value
@@ -250,7 +256,7 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
             self.predicate = predicate
         }
 
-        func getValue() async throws -> Element {
+        nonisolated(nonsending) func getValue() async throws -> Element {
             try await withCheckedThrowingContinuation { continuation in
                 let result: Result<Element, any Error>? = state.withLock {
                     switch $0 {
@@ -311,5 +317,9 @@ public final class Awaiting<Element: Sendable>: @unchecked Sendable {
 extension Awaiting {
     var isWaitingEmpty: Bool {
         mutex.withLock { $0.waiting.isEmpty }
+    }
+
+    var waitingCount: Int {
+        mutex.withLock { $0.waiting.count }
     }
 }
