@@ -6,15 +6,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  xcode_16:
-    runs-on: macos-15
+  xcode_26:
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: 🔍 Xcode Select
-        run: |
-          XCODE_PATH=`mdfind "kMDItemCFBundleIdentifier == 'com.apple.dt.Xcode' && kMDItemVersion == '16.*'" -onlyin /Applications | head -1`
-          echo "DEVELOPER_DIR=$XCODE_PATH/Contents/Developer" >> $GITHUB_ENV
       - name: Version
         run: swift --version
       - name: Build
@@ -29,10 +27,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage_report.lcov
 
-  xcode_15_3:
-    runs-on: macos-14
+  xcode_26_3:
+    runs-on: macos-26
     env:
-      DEVELOPER_DIR: /Applications/Xcode_15.3.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,23 +41,9 @@ jobs:
       - name: Test
         run: swift test --skip-build
 
-  xcode_15_4:
-    runs-on: macos-14
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Version
-        run: swift --version
-      - name: Build
-        run: swift build --build-tests
-      - name: Test
-        run: swift test --skip-build
-
-  linux_swift_5_9:
+  linux_swift_6_3:
     runs-on: ubuntu-latest
-    container: swift:5.9
+    container: swift:6.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,22 +54,9 @@ jobs:
       - name: Test
         run: swift test --skip-build
 
-  linux_swift_5_10:
+  linux_swift_6_2:
     runs-on: ubuntu-latest
-    container: swift:5.10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Version
-        run: swift --version
-      - name: Build
-        run: swift build --build-tests
-      - name: Test
-        run: swift test --skip-build
-
-  linux_swift_6_0:
-    runs-on: ubuntu-latest
-    container: swift:6.0
+    container: swift:6.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
